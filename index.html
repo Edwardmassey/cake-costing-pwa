@@ -5,32 +5,39 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0ea5e9"/>
 <style>
-:root{--bg:#0b1220;--card:#111827;--muted:#94a3b8;--text:#e5e7eb;--accent:#0ea5e9}
+:root{--bg:#0b1220;--card:#111827;--muted:#94a3b8;--text:#e5e7eb;--accent:#0ea5e9;--danger:#ef4444}
 *{box-sizing:border-box} html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'Helvetica Neue',Arial}
-.wrap{max-width:900px;margin:0 auto;padding:16px 16px calc(env(safe-area-inset-bottom) + 20px)}
+.wrap{max-width:980px;margin:0 auto;padding:16px 16px calc(env(safe-area-inset-bottom) + 20px)}
 h1{font-size:22px;margin:8px 0 12px} h2{font-size:18px;margin:18px 0 10px}
 .card{background:var(--card);border:1px solid #1f2937;border-radius:16px;padding:12px;margin:10px 0;box-shadow:0 6px 18px #00000035}
 label{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0}
-.row{display:flex;gap:8px;align-items:center} .grid{display:grid;gap:8px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap} .grid{display:grid;gap:8px}
 .grid-2{grid-template-columns:1fr 1fr} .grid-3{grid-template-columns:2fr 1fr 1fr}
 input,select,button,textarea{font:inherit;color:inherit}
 input,select,textarea{background:#0f172a;border:1px solid #334155;border-radius:12px;padding:10px 12px;width:100%}
-input[type=number]{text-align:right} .btn{background:#0f172a;border:1px solid #334155;padding:10px 14px;border-radius:12px}
+input[type=number]{text-align:right} .btn{background:#0f172a;border:1px solid #334155;padding:10px 14px;border-radius:12px;cursor:pointer}
 .btn.primary{background:#0ea5e9;border:none;color:#00131b;font-weight:600} .btn.ghost{background:transparent;border:1px dashed #334155}
+.btn.danger{background:#7f1d1d;border:1px solid #991b1b}
 .muted{color:#94a3b8;font-size:12px} table{width:100%;border-collapse:collapse}
 th,td{padding:8px;border-bottom:1px solid #1f2937} th{color:#9ca3af;text-align:left}
 .right{text-align:right} .center{text-align:center} .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#0f172a;border:1px solid #334155;color:#cbd5e1;font-size:12px}
 .tot{font-weight:700} .stickybar{position:sticky;bottom:0;background:linear-gradient(180deg, transparent, #0b1220 40%);padding-top:12px}
+.badge{background:#0ea5e91a;border:1px solid #0ea5e955;padding:2px 8px;border-radius:999px;margin-left:6px}
+.modal{position:fixed;inset:0;background:#0008;display:none;align-items:center;justify-content:center;padding:16px}
+.modal .panel{background:var(--card);border:1px solid #1f2937;border-radius:16px;max-width:720px;width:100%;padding:16px}
+.modal.show{display:flex}
+.kv{display:grid;grid-template-columns:1fr auto;gap:6px}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header class="row" style="justify-content:space-between">
-    <h1>🍰 Cake Costing</h1>
+    <h1>🍰 Cake Costing <span class="badge">Offline</span></h1>
     <div class="row">
-      <button id="btn-reset" class="btn ghost">Reset</button>
-      <button id="btn-export" class="btn">Export</button>
+      <button id="btn-reset" class="btn ghost" title="Reset to sample data">Reset</button>
+      <button id="btn-export" class="btn" title="Export all data">Export</button>
       <label class="btn" style="cursor:pointer">Import<input id="file-import" type="file" accept="application/json" hidden></label>
+      <button id="btn-install" class="btn primary">Install</button>
     </div>
   </header>
 
@@ -39,7 +46,7 @@ th,td{padding:8px;border-bottom:1px solid #1f2937} th{color:#9ca3af;text-align:l
       <label><span>Recipe name</span><input id="recipeName" placeholder="e.g. Victoria Sponge"></label>
       <label><span>Servings</span><input id="portions" type="number" min="1" step="1"></label>
     </div>
-    <p class="muted">Auto-saves offline to your phone. Export JSON to back up.</p>
+    <p class="muted">Auto-saves offline. Use the <b>Saved Recipes</b> section to snapshot this recipe and reload later.</p>
   </div>
 
   <section class="card">
@@ -92,21 +99,44 @@ th,td{padding:8px;border-bottom:1px solid #1f2937} th{color:#9ca3af;text-align:l
         <p>Price inc VAT (GP): <span class="pill" id="gpIncVat">£0.00</span></p>
       </div>
     </div>
-    <div class="stickybar row" style="justify-content:flex-end;gap:8px">
-      <button id="btn-save-json" class="btn">Save JSON</button>
-      <button id="btn-load-json" class="btn">Load JSON</button>
-      <button id="btn-install" class="btn primary">Install App</button>
+  </section>
+
+  <section class="card">
+    <h2>Saved Recipes</h2>
+    <div class="row">
+      <button id="btn-save-recipe" class="btn primary">Save Current Recipe</button>
+      <button id="btn-export-selected" class="btn">Export Selected</button>
+      <button id="btn-delete-selected" class="btn danger">Delete Selected</button>
     </div>
+    <div id="library" class="grid" style="margin-top:10px; grid-template-columns:1fr 1fr; gap:12px"></div>
+    <p class="muted">Saved recipes live on your device (localStorage). You can export any recipe as JSON and import on another device.</p>
   </section>
 </div>
 
+<!-- Modal to preview a saved recipe -->
+<div id="modal" class="modal">
+  <div class="panel">
+    <div class="row" style="justify-content:space-between">
+      <h3 id="m-title" style="margin:0">Recipe</h3>
+      <button id="m-close" class="btn">Close</button>
+    </div>
+    <div id="m-body"></div>
+    <div class="row" style="justify-content:flex-end;margin-top:10px">
+      <button id="m-load" class="btn primary">Load into Editor</button>
+    </div>
+  </div>
+</div>
+
 <script>
+// ---- Helpers & state ----
 const GBP = v => new Intl.NumberFormat('en-GB',{style:'currency',currency:'GBP',maximumFractionDigits:2}).format(isFinite(v)?v:0);
 const uid = () => Math.random().toString(36).slice(2,9);
-const STORAGE = 'cake-costing-pwa-v1';
+const STORAGE = 'cake-costing-pwa-v2';
 const $ = sel => document.querySelector(sel);
+const num = v => (v===''||v===null||v===undefined) ? 0 : (isNaN(parseFloat(v))?0:parseFloat(v));
+const fmt = n => isFinite(n)&&n!==null ? Number(n) : '';
 
-const state = {
+const defaultState = {
   recipeName:'', portions:12,
   ingredients:[
     {id:uid(), name:'Plain Flour', base:'g', packSize:1000, packUnit:'g', packPrice:1.2},
@@ -120,140 +150,275 @@ const state = {
     {id:uid(), ingredientName:'Butter', qty:200, notes:'', wastage:0}
   ],
   packaging:0, labourRate:15, labourHours:0.5, energy:0.5, overheadsPct:10, wastagePct:0,
-  markupPct:70, vatPct:20, gpPct:60
+  markupPct:70, vatPct:20, gpPct:60,
+  saved: [] // saved recipe snapshots live here
 };
 
-function saveLocal(){ localStorage.setItem(STORAGE, JSON.stringify(state)); render(); }
-function loadLocal(){ const raw = localStorage.getItem(STORAGE); if(raw){ try{ Object.assign(state, JSON.parse(raw)); }catch{} } }
+let state = JSON.parse(localStorage.getItem(STORAGE) || JSON.stringify(defaultState));
+let renderTimer=null;
+function scheduleRender(){ if(renderTimer) clearTimeout(renderTimer); renderTimer = setTimeout(()=>{ localStorage.setItem(STORAGE, JSON.stringify(state)); renderAll(); }, 120); }
 
+// ---- Computations ----
 const unitPrice = (ing) => {
-  if(!ing) return 0; const norm = (ing.packUnit==='kg'||ing.packUnit==='l')? ing.packSize*1000 : ing.packSize;
-  return norm>0 ? ing.packPrice/norm : 0;
+  if(!ing) return 0; const norm = (ing.packUnit==='kg'||ing.packUnit==='l')? num(ing.packSize)*1000 : num(ing.packSize);
+  return norm>0 ? num(ing.packPrice)/norm : 0;
 };
 const findIng = name => state.ingredients.find(i=>i.name===name);
 
 function compute(){
   const lines = state.recipe.map(r=>{
     const ing = findIng(r.ingredientName||''); const up = unitPrice(ing);
-    const cost = (r.qty||0)*up*(1+((r.wastage||0)/100));
+    const cost = num(r.qty)*up*(1+(num(r.wastage)/100));
     return {...r, unit: ing?ing.base:'', unitPrice: up, cost};
   });
-  const subtotal = lines.reduce((s,x)=>s+x.cost,0);
-  const withWastage = subtotal*(1+((state.wastagePct||0)/100));
-  const labour = (state.labourRate||0)*(state.labourHours||0);
-  const direct = withWastage + (state.packaging||0) + labour + (state.energy||0);
-  const overheads = direct*((state.overheadsPct||0)/100);
+  const subtotal = lines.reduce((s,x)=>s+num(x.cost),0);
+  const withWastage = subtotal*(1+(num(state.wastagePct)/100));
+  const labour = num(state.labourRate)*num(state.labourHours);
+  const direct = withWastage + num(state.packaging) + labour + num(state.energy);
+  const overheads = direct*(num(state.overheadsPct)/100);
   const trueCost = direct + overheads;
-  const priceExVat = trueCost*(1+((state.markupPct||0)/100));
-  const vat = priceExVat*((state.vatPct||0)/100);
+  const priceExVat = trueCost*(1+(num(state.markupPct)/100));
+  const vat = priceExVat*(num(state.vatPct)/100);
   const priceIncVat = priceExVat + vat;
-  const ppp = (state.portions>0)? priceIncVat/state.portions : 0;
-  const g = (state.gpPct||0)/100; const gpEx = (1-g>0)? trueCost/(1-g):0;
-  const gpVat = gpEx*((state.vatPct||0)/100); const gpInc = gpEx + gpVat;
+  const ppp = (num(state.portions)>0)? priceIncVat/num(state.portions) : 0;
+  const g = num(state.gpPct)/100; const gpEx = (1-g>0)? trueCost/(1-g):0;
+  const gpVat = gpEx*(num(state.vatPct)/100); const gpInc = gpEx + gpVat;
   return {lines, subtotal, trueCost, priceExVat, vat, priceIncVat, ppp, gpEx, gpVat, gpInc};
 }
 
+// ---- Renderers ----
 function renderIngredients(){
-  const tbody = $('#tbl-ing tbody'); tbody.innerHTML='';
+  const tbody = document.querySelector('#tbl-ing tbody'); tbody.innerHTML='';
   state.ingredients.forEach(ing=>{
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><input value="${ing.name}"/></td>
-      <td class="center"><input value="${ing.base}"/></td>
-      <td class="right"><input type="number" step="0.01" value="${ing.packSize}"/></td>
-      <td class="center"><input value="${ing.packUnit}"/></td>
-      <td class="right"><input type="number" step="0.01" value="${ing.packPrice}"/></td>
+      <td><input value="${ing.name??''}"/></td>
+      <td class="center"><input value="${ing.base??''}"/></td>
+      <td class="right"><input type="number" step="0.01" value="${fmt(ing.packSize)}"/></td>
+      <td class="center"><input value="${ing.packUnit??''}"/></td>
+      <td class="right"><input type="number" step="0.01" value="${fmt(ing.packPrice)}"/></td>
       <td class="right">${GBP(unitPrice(ing))}</td>
       <td class="center"><button class="btn" data-del>✕</button></td>`;
     const [n,b,s,u,p] = tr.querySelectorAll('input');
-    n.oninput=e=>{ing.name=e.target.value; saveLocal();};
-    b.oninput=e=>{ing.base=e.target.value; saveLocal();};
-    s.oninput=e=>{ing.packSize=+e.target.value; saveLocal();};
-    u.oninput=e=>{ing.packUnit=e.target.value; saveLocal();};
-    p.oninput=e=>{ing.packPrice=+e.target.value; saveLocal();};
-    tr.querySelector('[data-del]').onclick=()=>{ state.ingredients=state.ingredients.filter(x=>x.id!==ing.id); saveLocal(); };
+    n.oninput=e=>{ing.name=e.target.value; scheduleRender();};
+    b.oninput=e=>{ing.base=e.target.value; scheduleRender();};
+    s.oninput=e=>{ing.packSize=e.target.value; scheduleRender();};
+    u.oninput=e=>{ing.packUnit=e.target.value; scheduleRender();};
+    p.oninput=e=>{ing.packPrice=e.target.value; scheduleRender();};
+    tr.querySelector('[data-del]').onclick=()=>{ state.ingredients=state.ingredients.filter(x=>x.id!==ing.id); scheduleRender(); };
     tbody.appendChild(tr);
   });
 }
 
 function renderRecipe(){
-  const tbody = $('#tbl-rec tbody'); tbody.innerHTML='';
-  const lines = compute().lines;
+  const tbody = document.querySelector('#tbl-rec tbody'); tbody.innerHTML='';
+  const calc = compute();
   state.recipe.forEach((r, idx)=>{
     const names = state.ingredients.map(i=>i.name);
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><select>${names.map(n=>`<option ${n===r.ingredientName?'selected':''}>${n}</option>`).join('')}</select></td>
-      <td class="center">${lines[idx].unit||''}</td>
-      <td class="right"><input type="number" step="0.01" value="${r.qty||0}"/></td>
-      <td class="right"><input type="number" step="1" value="${r.wastage||0}"/></td>
-      <td class="right">${GBP(lines[idx].unitPrice)}</td>
-      <td class="right">${GBP(lines[idx].cost)}</td>
-      <td><input value="${r.notes||''}"/></td>
+      <td class="center">${calc.lines[idx]?.unit||''}</td>
+      <td class="right"><input type="number" step="0.01" value="${fmt(r.qty)}"/></td>
+      <td class="right"><input type="number" step="1" value="${fmt(r.wastage)}"/></td>
+      <td class="right">${GBP(calc.lines[idx]?.unitPrice||0)}</td>
+      <td class="right">${GBP(calc.lines[idx]?.cost||0)}</td>
+      <td><input value="${r.notes??''}"/></td>
       <td class="center"><button class="btn" data-del>✕</button></td>`;
     const sel = tr.querySelector('select');
-    sel.onchange=e=>{ r.ingredientName=e.target.value; saveLocal(); };
-    const [qty,wst,notes] = tr.querySelectorAll('input');
-    qty.oninput=e=>{ r.qty=+e.target.value; saveLocal(); };
-    wst.oninput=e=>{ r.wastage=+e.target.value; saveLocal(); };
-    notes.oninput=e=>{ r.notes=e.target.value; saveLocal(); };
-    tr.querySelector('[data-del]').onclick=()=>{ state.recipe=state.recipe.filter(x=>x.id!==r.id); saveLocal(); };
+    sel.onchange=e=>{ r.ingredientName=e.target.value; scheduleRender(); };
+    const inputs = tr.querySelectorAll('input');
+    const qty = inputs[0], wast = inputs[1], notes = inputs[2];
+    qty.oninput=e=>{ r.qty = e.target.value; scheduleRender(); };
+    wast.oninput=e=>{ r.wastage = e.target.value; scheduleRender(); };
+    notes.oninput=e=>{ r.notes = e.target.value; scheduleRender(); };
+    tr.querySelector('[data-del]').onclick=()=>{ state.recipe=state.recipe.filter(x=>x.id!==r.id); scheduleRender(); };
     tbody.appendChild(tr);
   });
-  $('#subtotal').textContent = GBP(compute().subtotal);
+  document.getElementById('subtotal').textContent = GBP(calc.subtotal);
 }
 
 function renderSummary(){
   const c = compute();
-  $('#trueCost').textContent = GBP(c.trueCost);
-  $('#priceExVat').textContent = GBP(c.priceExVat);
-  $('#priceIncVat').textContent = GBP(c.priceIncVat);
-  $('#ppp').textContent = GBP(c.ppp);
-  $('#gpExVat').textContent = GBP(c.gpEx);
-  $('#gpVat').textContent = GBP(c.gpVat);
-  $('#gpIncVat').textContent = GBP(c.gpInc);
+  document.getElementById('trueCost').textContent = GBP(c.trueCost);
+  document.getElementById('priceExVat').textContent = GBP(c.priceExVat);
+  document.getElementById('priceIncVat').textContent = GBP(c.priceIncVat);
+  document.getElementById('ppp').textContent = GBP(c.ppp);
+  document.getElementById('gpExVat').textContent = GBP(c.gpEx);
+  document.getElementById('gpVat').textContent = GBP(c.gpVat);
+  document.getElementById('gpIncVat').textContent = GBP(c.gpInc);
 }
 
-function render(){
-  $('#recipeName').value = state.recipeName || '';
-  $('#portions').value = state.portions || 0;
-  $('#packaging').value = state.packaging || 0;
-  $('#labourRate').value = state.labourRate || 0;
-  $('#labourHours').value = state.labourHours || 0;
-  $('#energy').value = state.energy || 0;
-  $('#overheadsPct').value = state.overheadsPct || 0;
-  $('#wastagePct').value = state.wastagePct || 0;
-  $('#markupPct').value = state.markupPct || 0;
-  $('#vatPct').value = state.vatPct || 0;
-  $('#gpPct').value = state.gpPct || 0;
-  renderIngredients(); renderRecipe(); renderSummary();
+function renderLibrary(){
+  const el = document.getElementById('library'); el.innerHTML='';
+  if(!state.saved || state.saved.length===0){
+    el.innerHTML = '<p class="muted">No saved recipes yet. Click <b>Save Current Recipe</b> to create one.</p>';
+    return;
+  }
+  state.saved.forEach((rec, idx)=>{
+    const div = document.createElement('div'); div.className='card';
+    const calc = rec.summary||{};
+    div.innerHTML = `
+      <div class="row" style="justify-content:space-between">
+        <div>
+          <strong>${rec.name||'Untitled'}</strong>
+          <div class="muted">${new Date(rec.savedAt).toLocaleString()}</div>
+        </div>
+        <div class="row">
+          <input type="checkbox" data-select />
+          <button class="btn" data-preview>Preview</button>
+          <button class="btn primary" data-load>Load</button>
+          <button class="btn" data-export>Export</button>
+        </div>
+      </div>
+      <div class="kv" style="margin-top:8px">
+        <span>Ingredients rows</span><span>${rec.recipe?.length||0}</span>
+        <span>True cost</span><span>${GBP(calc.trueCost||0)}</span>
+        <span>Price ex VAT (GP)</span><span>${GBP(calc.gpEx||0)}</span>
+        <span>Price inc VAT (GP)</span><span>${GBP(calc.gpInc||0)}</span>
+      </div>
+    `;
+    div.querySelector('[data-preview]').onclick = ()=> openPreview(rec);
+    div.querySelector('[data-load]').onclick = ()=> loadRecipe(rec);
+    div.querySelector('[data-export]').onclick = ()=> exportJSON(rec, (rec.name||'recipe')+'-'+new Date(rec.savedAt).toISOString().slice(0,16).replace(/[:T]/g,'')+'.json');
+    div.querySelector('[data-select]').onchange = (e)=>{ rec._selected = e.target.checked; };
+    el.appendChild(div);
+  });
 }
 
+// ---- Save / Load ----
+function snapshot(){
+  const c = compute();
+  return {
+    id: uid(),
+    savedAt: new Date().toISOString(),
+    name: state.recipeName||'Untitled',
+    portions: num(state.portions),
+    ingredients: JSON.parse(JSON.stringify(state.ingredients)),
+    recipe: JSON.parse(JSON.stringify(state.recipe)),
+    inputs: {
+      packaging: num(state.packaging), labourRate: num(state.labourRate), labourHours: num(state.labourHours),
+      energy: num(state.energy), overheadsPct: num(state.overheadsPct), wastagePct: num(state.wastagePct),
+      markupPct: num(state.markupPct), vatPct: num(state.vatPct), gpPct: num(state.gpPct)
+    },
+    summary: {
+      subtotal: c.subtotal, trueCost: c.trueCost, priceExVat: c.priceExVat, priceIncVat: c.priceIncVat,
+      ppp: c.ppp, gpEx: c.gpEx, gpVat: c.gpVat, gpInc: c.gpInc
+    }
+  };
+}
+function saveCurrent(){
+  state.saved = state.saved || [];
+  state.saved.unshift(snapshot());
+  scheduleRender();
+}
+function loadRecipe(rec){
+  state.recipeName = rec.name||'';
+  state.portions = rec.portions||12;
+  state.ingredients = rec.ingredients||[];
+  state.recipe = rec.recipe||[];
+  state.packaging = rec.inputs?.packaging||0;
+  state.labourRate = rec.inputs?.labourRate||0;
+  state.labourHours = rec.inputs?.labourHours||0;
+  state.energy = rec.inputs?.energy||0;
+  state.overheadsPct = rec.inputs?.overheadsPct||0;
+  state.wastagePct = rec.inputs?.wastagePct||0;
+  state.markupPct = rec.inputs?.markupPct||0;
+  state.vatPct = rec.inputs?.vatPct||0;
+  state.gpPct = rec.inputs?.gpPct||0;
+  scheduleRender();
+}
+function deleteSelected(){
+  if(!state.saved) return;
+  const count = state.saved.filter(r=>r._selected).length;
+  if(count===0){ alert('No recipes selected. Tick the checkboxes to select.'); return; }
+  if(confirm('Delete '+count+' selected recipe(s)?')){
+    state.saved = state.saved.filter(r=>!r._selected);
+    scheduleRender();
+  }
+}
+
+// ---- Modal preview ----
+function openPreview(rec){
+  const m = document.getElementById('modal'); m.classList.add('show');
+  document.getElementById('m-title').textContent = rec.name||'Recipe';
+  const c = rec.summary||{};
+  const body = document.getElementById('m-body');
+  body.innerHTML = `
+    <div class="kv">
+      <span>Saved</span><span>${new Date(rec.savedAt).toLocaleString()}</span>
+      <span>Rows</span><span>${rec.recipe?.length||0}</span>
+      <span>True cost</span><span>${GBP(c.trueCost||0)}</span>
+      <span>Price ex VAT (GP)</span><span>${GBP(c.gpEx||0)}</span>
+      <span>Price inc VAT (GP)</span><span>${GBP(c.gpInc||0)}</span>
+    </div>
+    <div style="max-height:40vh; overflow:auto; margin-top:8px">
+      <table style="width:100%">
+        <thead><tr><th>Ingredient</th><th class="center">Unit</th><th class="right">Qty</th><th class="right">Wastage %</th><th class="right">Unit price</th><th class="right">Line cost</th><th>Notes</th></tr></thead>
+        <tbody>
+          ${(rec.recipe||[]).map(r=>`
+            <tr>
+              <td>${r.ingredientName||''}</td>
+              <td class="center">${r.unit||''}</td>
+              <td class="right">${r.qty||''}</td>
+              <td class="right">${r.wastage||''}</td>
+              <td class="right"></td>
+              <td class="right"></td>
+              <td>${r.notes||''}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  document.getElementById('m-load').onclick = ()=>{ loadRecipe(rec); m.classList.remove('show'); };
+}
+document.getElementById('m-close').onclick = ()=> document.getElementById('modal').classList.remove('show');
+
+// ---- Export / Import ----
 function exportJSON(obj, filename){
   const blob = new Blob([JSON.stringify(obj,null,2)], {type:'application/json'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click(); URL.revokeObjectURL(a.href);
 }
 
-loadLocal(); render();
-$('#recipeName').oninput = e=>{ state.recipeName=e.target.value; saveLocal(); };
+// ---- Bindings ----
+function renderAll(){ renderIngredients(); renderRecipe(); renderSummary(); renderLibrary();
+  // also keep inputs synced without coercing blanks
+  document.getElementById('recipeName').value = state.recipeName ?? '';
+  document.getElementById('portions').value = (state.portions??'')===0 ? '' : state.portions ?? '';
+  ['packaging','labourRate','labourHours','energy','overheadsPct','wastagePct','markupPct','vatPct','gpPct'].forEach(id=>{
+    const v = state[id]; document.getElementById(id).value = (v===0||v) ? v : '';
+  });
+}
+
+document.getElementById('recipeName').oninput = e=>{ state.recipeName=e.target.value; scheduleRender(); };
 ['portions','packaging','labourRate','labourHours','energy','overheadsPct','wastagePct','markupPct','vatPct','gpPct'].forEach(id=>{
-  $('#'+id).oninput = e=>{ state[id] = +e.target.value; saveLocal(); };
+  document.getElementById(id).oninput = e=>{ state[id] = e.target.value; scheduleRender(); };
 });
-$('#btn-add-ing').onclick = ()=>{ state.ingredients.push({id:uid(), name:'New Ingredient', base:'g', packSize:1000, packUnit:'g', packPrice:0}); saveLocal(); };
-$('#btn-add-row').onclick = ()=>{ state.recipe.push({id:uid(), ingredientName:(state.ingredients[0]?.name||''), qty:0, notes:'', wastage:0}); saveLocal(); };
-$('#btn-export').onclick = ()=> exportJSON(state, 'cake-costing-data.json');
-$('#file-import').onchange = e=>{
+document.getElementById('btn-add-ing').onclick = ()=>{ state.ingredients.push({id:uid(), name:'New Ingredient', base:'g', packSize:'', packUnit:'g', packPrice:''}); scheduleRender(); };
+document.getElementById('btn-add-row').onclick = ()=>{ state.recipe.push({id:uid(), ingredientName:(state.ingredients[0]?.name||''), qty:'', notes:'', wastage:''}); scheduleRender(); };
+document.getElementById('btn-export').onclick = ()=> exportJSON(state, 'cake-costing-data.json');
+document.getElementById('file-import').onchange = e=>{
   const f = e.target.files?.[0]; if(!f) return;
-  const r = new FileReader(); r.onload = ()=>{ try{ Object.assign(state, JSON.parse(r.result)); saveLocal(); }catch{ alert('Invalid JSON'); } };
+  const r = new FileReader(); r.onload = ()=>{ try{ state = JSON.parse(r.result); scheduleRender(); }catch{ alert('Invalid JSON'); } };
   r.readAsText(f);
 };
-$('#btn-save-json').onclick = ()=> exportJSON({...state, savedAt:new Date().toISOString()}, (state.recipeName||'recipe')+'-snapshot.json');
-$('#btn-load-json').onclick = ()=> $('#file-import').click();
+document.getElementById('btn-install').onclick = ()=> alert('Use browser menu → Add to Home Screen to install.');
 
-let deferredPrompt=null;
-window.addEventListener('beforeinstallprompt', e=>{ e.preventDefault(); deferredPrompt=e; });
-$('#btn-install').onclick = async ()=>{ if(deferredPrompt){ deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt=null; } else alert('Use your browser menu: Add to Home Screen'); };
+// Saved Recipes buttons
+document.getElementById('btn-save-recipe').onclick = saveCurrent;
+document.getElementById('btn-export-selected').onclick = ()=>{
+  const chosen = (state.saved||[]).filter(r=>r._selected);
+  if(chosen.length===0) return alert('No recipes selected.');
+  exportJSON(chosen, 'saved-recipes.json');
+};
+document.getElementById('btn-delete-selected').onclick = deleteSelected;
 
+document.getElementById('btn-reset').onclick = ()=>{ if(confirm('Reset app to sample data?')){ state = JSON.parse(JSON.stringify(defaultState)); scheduleRender(); } };
+
+// Service worker
 if('serviceWorker' in navigator){ window.addEventListener('load', ()=> navigator.serviceWorker.register('./sw.js')); }
+
+// Start
+renderAll();
 </script>
 </body></html>
