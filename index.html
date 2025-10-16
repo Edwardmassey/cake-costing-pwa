@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cake Costing — PWA</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0ea5e9"/>
+<style>
+:root{--bg:#0b1220;--card:#111827;--muted:#94a3b8;--text:#e5e7eb;--accent:#0ea5e9}
+*{box-sizing:border-box} html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'Helvetica Neue',Arial}
+.wrap{max-width:900px;margin:0 auto;padding:16px 16px calc(env(safe-area-inset-bottom) + 20px)}
+h1{font-size:22px;margin:8px 0 12px} h2{font-size:18px;margin:18px 0 10px}
+.card{background:var(--card);border:1px solid #1f2937;border-radius:16px;padding:12px;margin:10px 0;box-shadow:0 6px 18px #00000035}
+label{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0}
+.row{display:flex;gap:8px;align-items:center} .grid{display:grid;gap:8px}
+.grid-2{grid-template-columns:1fr 1fr} .grid-3{grid-template-columns:2fr 1fr 1fr}
+input,select,button,textarea{font:inherit;color:inherit}
+input,select,textarea{background:#0f172a;border:1px solid #334155;border-radius:12px;padding:10px 12px;width:100%}
+input[type=number]{text-align:right} .btn{background:#0f172a;border:1px solid #334155;padding:10px 14px;border-radius:12px}
+.btn.primary{background:#0ea5e9;border:none;color:#00131b;font-weight:600} .btn.ghost{background:transparent;border:1px dashed #334155}
+.muted{color:#94a3b8;font-size:12px} table{width:100%;border-collapse:collapse}
+th,td{padding:8px;border-bottom:1px solid #1f2937} th{color:#9ca3af;text-align:left}
+.right{text-align:right} .center{text-align:center} .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#0f172a;border:1px solid #334155;color:#cbd5e1;font-size:12px}
+.tot{font-weight:700} .stickybar{position:sticky;bottom:0;background:linear-gradient(180deg, transparent, #0b1220 40%);padding-top:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="row" style="justify-content:space-between">
+    <h1>🍰 Cake Costing</h1>
+    <div class="row">
+      <button id="btn-reset" class="btn ghost">Reset</button>
+      <button id="btn-export" class="btn">Export</button>
+      <label class="btn" style="cursor:pointer">Import<input id="file-import" type="file" accept="application/json" hidden></label>
+    </div>
+  </header>
+
+  <div class="card">
+    <div class="grid grid-2">
+      <label><span>Recipe name</span><input id="recipeName" placeholder="e.g. Victoria Sponge"></label>
+      <label><span>Servings</span><input id="portions" type="number" min="1" step="1"></label>
+    </div>
+    <p class="muted">Auto-saves offline to your phone. Export JSON to back up.</p>
+  </div>
+
+  <section class="card">
+    <h2>Ingredients (packs)</h2>
+    <div class="row" style="justify-content:flex-end"><button id="btn-add-ing" class="btn">+ Add ingredient</button></div>
+    <div style="overflow:auto">
+      <table id="tbl-ing"><thead><tr>
+        <th>Name</th><th class="center">Base unit</th><th class="right">Pack size</th><th class="center">Pack unit</th>
+        <th class="right">Pack price</th><th class="right">Unit price</th><th></th>
+      </tr></thead><tbody></tbody></table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Recipe</h2>
+    <div class="row" style="justify-content:flex-end"><button id="btn-add-row" class="btn">+ Add row</button></div>
+    <div style="overflow:auto">
+      <table id="tbl-rec"><thead><tr>
+        <th>Ingredient</th><th class="center">Unit</th><th class="right">Qty</th><th class="right">Wastage %</th>
+        <th class="right">Unit price</th><th class="right">Line cost</th><th>Notes</th><th></th>
+      </tr></thead><tbody></tbody>
+      <tfoot><tr><td colspan="5" class="right tot">Ingredients subtotal</td><td class="right tot" id="subtotal">£0.00</td><td colspan="2"></td></tr></tfoot>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Summary</h2>
+    <div class="grid grid-3">
+      <label><span>Packaging</span><input id="packaging" type="number" step="0.01"></label>
+      <label><span>Labour rate (£/hr)</span><input id="labourRate" type="number" step="0.01"></label>
+      <label><span>Labour hours</span><input id="labourHours" type="number" step="0.01"></label>
+      <label><span>Energy</span><input id="energy" type="number" step="0.01"></label>
+      <label><span>Overheads %</span><input id="overheadsPct" type="number" step="1" min="0" max="100"></label>
+      <label><span>Wastage % (global)</span><input id="wastagePct" type="number" step="1" min="0" max="100"></label>
+    </div>
+    <div class="grid grid-2" style="margin-top:8px">
+      <div>
+        <p>True cost: <span class="pill" id="trueCost">£0.00</span></p>
+        <p>Price (ex VAT, markup): <span class="pill" id="priceExVat">£0.00</span></p>
+        <p>VAT % <input id="vatPct" type="number" step="1" min="0" max="100" style="width:90px"></p>
+        <p>Price (inc VAT, markup): <span class="pill" id="priceIncVat">£0.00</span></p>
+        <p>£ / portion: <span class="pill" id="ppp">£0.00</span></p>
+      </div>
+      <div>
+        <p>Markup % on true cost <input id="markupPct" type="number" step="1" min="0" max="100" style="width:90px"></p>
+        <p>Target GP % <input id="gpPct" type="number" step="1" min="0" max="100" style="width:90px"></p>
+        <p>Price ex VAT (GP): <span class="pill" id="gpExVat">£0.00</span></p>
+        <p>VAT (GP): <span class="pill" id="gpVat">£0.00</span></p>
+        <p>Price inc VAT (GP): <span class="pill" id="gpIncVat">£0.00</span></p>
+      </div>
+    </div>
+    <div class="stickybar row" style="justify-content:flex-end;gap:8px">
+      <button id="btn-save-json" class="btn">Save JSON</button>
+      <button id="btn-load-json" class="btn">Load JSON</button>
+      <button id="btn-install" class="btn primary">Install App</button>
+    </div>
+  </section>
+</div>
+
+<script>
+const GBP = v => new Intl.NumberFormat('en-GB',{style:'currency',currency:'GBP',maximumFractionDigits:2}).format(isFinite(v)?v:0);
+const uid = () => Math.random().toString(36).slice(2,9);
+const STORAGE = 'cake-costing-pwa-v1';
+const $ = sel => document.querySelector(sel);
+
+const state = {
+  recipeName:'', portions:12,
+  ingredients:[
+    {id:uid(), name:'Plain Flour', base:'g', packSize:1000, packUnit:'g', packPrice:1.2},
+    {id:uid(), name:'Caster Sugar', base:'g', packSize:1000, packUnit:'g', packPrice:1.0},
+    {id:uid(), name:'Butter', base:'g', packSize:500, packUnit:'g', packPrice:3.5},
+    {id:uid(), name:'Eggs', base:'each', packSize:6, packUnit:'each', packPrice:2.1},
+  ],
+  recipe:[
+    {id:uid(), ingredientName:'Plain Flour', qty:200, notes:'', wastage:0},
+    {id:uid(), ingredientName:'Caster Sugar', qty:150, notes:'', wastage:0},
+    {id:uid(), ingredientName:'Butter', qty:200, notes:'', wastage:0}
+  ],
+  packaging:0, labourRate:15, labourHours:0.5, energy:0.5, overheadsPct:10, wastagePct:0,
+  markupPct:70, vatPct:20, gpPct:60
+};
+
+function saveLocal(){ localStorage.setItem(STORAGE, JSON.stringify(state)); render(); }
+function loadLocal(){ const raw = localStorage.getItem(STORAGE); if(raw){ try{ Object.assign(state, JSON.parse(raw)); }catch{} } }
+
+const unitPrice = (ing) => {
+  if(!ing) return 0; const norm = (ing.packUnit==='kg'||ing.packUnit==='l')? ing.packSize*1000 : ing.packSize;
+  return norm>0 ? ing.packPrice/norm : 0;
+};
+const findIng = name => state.ingredients.find(i=>i.name===name);
+
+function compute(){
+  const lines = state.recipe.map(r=>{
+    const ing = findIng(r.ingredientName||''); const up = unitPrice(ing);
+    const cost = (r.qty||0)*up*(1+((r.wastage||0)/100));
+    return {...r, unit: ing?ing.base:'', unitPrice: up, cost};
+  });
+  const subtotal = lines.reduce((s,x)=>s+x.cost,0);
+  const withWastage = subtotal*(1+((state.wastagePct||0)/100));
+  const labour = (state.labourRate||0)*(state.labourHours||0);
+  const direct = withWastage + (state.packaging||0) + labour + (state.energy||0);
+  const overheads = direct*((state.overheadsPct||0)/100);
+  const trueCost = direct + overheads;
+  const priceExVat = trueCost*(1+((state.markupPct||0)/100));
+  const vat = priceExVat*((state.vatPct||0)/100);
+  const priceIncVat = priceExVat + vat;
+  const ppp = (state.portions>0)? priceIncVat/state.portions : 0;
+  const g = (state.gpPct||0)/100; const gpEx = (1-g>0)? trueCost/(1-g):0;
+  const gpVat = gpEx*((state.vatPct||0)/100); const gpInc = gpEx + gpVat;
+  return {lines, subtotal, trueCost, priceExVat, vat, priceIncVat, ppp, gpEx, gpVat, gpInc};
+}
+
+function renderIngredients(){
+  const tbody = $('#tbl-ing tbody'); tbody.innerHTML='';
+  state.ingredients.forEach(ing=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input value="${ing.name}"/></td>
+      <td class="center"><input value="${ing.base}"/></td>
+      <td class="right"><input type="number" step="0.01" value="${ing.packSize}"/></td>
+      <td class="center"><input value="${ing.packUnit}"/></td>
+      <td class="right"><input type="number" step="0.01" value="${ing.packPrice}"/></td>
+      <td class="right">${GBP(unitPrice(ing))}</td>
+      <td class="center"><button class="btn" data-del>✕</button></td>`;
+    const [n,b,s,u,p] = tr.querySelectorAll('input');
+    n.oninput=e=>{ing.name=e.target.value; saveLocal();};
+    b.oninput=e=>{ing.base=e.target.value; saveLocal();};
+    s.oninput=e=>{ing.packSize=+e.target.value; saveLocal();};
+    u.oninput=e=>{ing.packUnit=e.target.value; saveLocal();};
+    p.oninput=e=>{ing.packPrice=+e.target.value; saveLocal();};
+    tr.querySelector('[data-del]').onclick=()=>{ state.ingredients=state.ingredients.filter(x=>x.id!==ing.id); saveLocal(); };
+    tbody.appendChild(tr);
+  });
+}
+
+function renderRecipe(){
+  const tbody = $('#tbl-rec tbody'); tbody.innerHTML='';
+  const lines = compute().lines;
+  state.recipe.forEach((r, idx)=>{
+    const names = state.ingredients.map(i=>i.name);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><select>${names.map(n=>`<option ${n===r.ingredientName?'selected':''}>${n}</option>`).join('')}</select></td>
+      <td class="center">${lines[idx].unit||''}</td>
+      <td class="right"><input type="number" step="0.01" value="${r.qty||0}"/></td>
+      <td class="right"><input type="number" step="1" value="${r.wastage||0}"/></td>
+      <td class="right">${GBP(lines[idx].unitPrice)}</td>
+      <td class="right">${GBP(lines[idx].cost)}</td>
+      <td><input value="${r.notes||''}"/></td>
+      <td class="center"><button class="btn" data-del>✕</button></td>`;
+    const sel = tr.querySelector('select');
+    sel.onchange=e=>{ r.ingredientName=e.target.value; saveLocal(); };
+    const [qty,wst,notes] = tr.querySelectorAll('input');
+    qty.oninput=e=>{ r.qty=+e.target.value; saveLocal(); };
+    wst.oninput=e=>{ r.wastage=+e.target.value; saveLocal(); };
+    notes.oninput=e=>{ r.notes=e.target.value; saveLocal(); };
+    tr.querySelector('[data-del]').onclick=()=>{ state.recipe=state.recipe.filter(x=>x.id!==r.id); saveLocal(); };
+    tbody.appendChild(tr);
+  });
+  $('#subtotal').textContent = GBP(compute().subtotal);
+}
+
+function renderSummary(){
+  const c = compute();
+  $('#trueCost').textContent = GBP(c.trueCost);
+  $('#priceExVat').textContent = GBP(c.priceExVat);
+  $('#priceIncVat').textContent = GBP(c.priceIncVat);
+  $('#ppp').textContent = GBP(c.ppp);
+  $('#gpExVat').textContent = GBP(c.gpEx);
+  $('#gpVat').textContent = GBP(c.gpVat);
+  $('#gpIncVat').textContent = GBP(c.gpInc);
+}
+
+function render(){
+  $('#recipeName').value = state.recipeName || '';
+  $('#portions').value = state.portions || 0;
+  $('#packaging').value = state.packaging || 0;
+  $('#labourRate').value = state.labourRate || 0;
+  $('#labourHours').value = state.labourHours || 0;
+  $('#energy').value = state.energy || 0;
+  $('#overheadsPct').value = state.overheadsPct || 0;
+  $('#wastagePct').value = state.wastagePct || 0;
+  $('#markupPct').value = state.markupPct || 0;
+  $('#vatPct').value = state.vatPct || 0;
+  $('#gpPct').value = state.gpPct || 0;
+  renderIngredients(); renderRecipe(); renderSummary();
+}
+
+function exportJSON(obj, filename){
+  const blob = new Blob([JSON.stringify(obj,null,2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click(); URL.revokeObjectURL(a.href);
+}
+
+loadLocal(); render();
+$('#recipeName').oninput = e=>{ state.recipeName=e.target.value; saveLocal(); };
+['portions','packaging','labourRate','labourHours','energy','overheadsPct','wastagePct','markupPct','vatPct','gpPct'].forEach(id=>{
+  $('#'+id).oninput = e=>{ state[id] = +e.target.value; saveLocal(); };
+});
+$('#btn-add-ing').onclick = ()=>{ state.ingredients.push({id:uid(), name:'New Ingredient', base:'g', packSize:1000, packUnit:'g', packPrice:0}); saveLocal(); };
+$('#btn-add-row').onclick = ()=>{ state.recipe.push({id:uid(), ingredientName:(state.ingredients[0]?.name||''), qty:0, notes:'', wastage:0}); saveLocal(); };
+$('#btn-export').onclick = ()=> exportJSON(state, 'cake-costing-data.json');
+$('#file-import').onchange = e=>{
+  const f = e.target.files?.[0]; if(!f) return;
+  const r = new FileReader(); r.onload = ()=>{ try{ Object.assign(state, JSON.parse(r.result)); saveLocal(); }catch{ alert('Invalid JSON'); } };
+  r.readAsText(f);
+};
+$('#btn-save-json').onclick = ()=> exportJSON({...state, savedAt:new Date().toISOString()}, (state.recipeName||'recipe')+'-snapshot.json');
+$('#btn-load-json').onclick = ()=> $('#file-import').click();
+
+let deferredPrompt=null;
+window.addEventListener('beforeinstallprompt', e=>{ e.preventDefault(); deferredPrompt=e; });
+$('#btn-install').onclick = async ()=>{ if(deferredPrompt){ deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt=null; } else alert('Use your browser menu: Add to Home Screen'); };
+
+if('serviceWorker' in navigator){ window.addEventListener('load', ()=> navigator.serviceWorker.register('./sw.js')); }
+</script>
+</body></html>
